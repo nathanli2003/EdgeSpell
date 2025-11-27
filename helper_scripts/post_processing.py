@@ -1,3 +1,10 @@
+# Main post-processing script that orchestrates the execution of helper scripts
+# Run the script from EdgeSpell root directory to ensure correct paths
+# This script sequentially calls:
+# 1. normalize.py to normalize raw data
+# 2. append_col.py to append columns from normalized files
+# 3. remove_mag.py to remove magnetometer columns
+
 import os
 import shutil
 

@@ -61,6 +61,10 @@ static void MPU9250_ReadAndPrintRaw(void);
 /* USER CODE BEGIN 0 */
 static mpu9250_handle_t s_mpu9250_handle;
 
+/**
+ * @brief Reads and prints the WHO_AM_I register of the MPU9250.
+ * @note  This function is used to verify the I2C communication with the sensor.
+ */
 static void MPU9250_Print_WhoAmI(void)
 {
   uint8_t who_am_i = 0U;
@@ -85,6 +89,12 @@ static void MPU9250_Print_WhoAmI(void)
   HAL_UART_Transmit(&huart2, (uint8_t *)buffer, (uint16_t)len, HAL_MAX_DELAY);
 }
 
+/**
+ * @brief Initializes the MPU9250 sensor.
+ * @note  This function configures the sensor interface, initializes the driver,
+ *        and sets the accelerometer, gyroscope, and magnetometer parameters.
+ *        It will call Error_Handler() on failure.
+ */
 static void MPU9250_Init(void)
 {
   DRIVER_MPU9250_LINK_INIT(&s_mpu9250_handle, mpu9250_handle_t);
@@ -118,7 +128,7 @@ static void MPU9250_Init(void)
   /* Example configuration: 1 kHz / (1 + div) = 100 Hz */
   (void)mpu9250_set_sample_rate_divider(&s_mpu9250_handle, 9);
   (void)mpu9250_set_low_pass_filter(&s_mpu9250_handle, MPU9250_LOW_PASS_FILTER_3);
-  (void)mpu9250_set_accelerometer_range(&s_mpu9250_handle, MPU9250_ACCELEROMETER_RANGE_16G);
+  (void)mpu9250_set_accelerometer_range(&s_mpu9250_handle, MPU9250_ACCELEROMETER_RANGE_16G); // 16g sensitivity for gesture recognition
   (void)mpu9250_set_gyroscope_range(&s_mpu9250_handle, MPU9250_GYROSCOPE_RANGE_2000DPS);
 
   if (mpu9250_mag_init(&s_mpu9250_handle) != 0)
@@ -131,6 +141,10 @@ static void MPU9250_Init(void)
   (void)mpu9250_mag_set_mode(&s_mpu9250_handle, MPU9250_MAGNETOMETER_MODE_CONTINUOUS2);
 }
 
+/**
+ * @brief Reads and prints the processed sensor data from the MPU9250.
+ * @note  Data is printed in engineering units (g, dps, uT).
+ */
 static void MPU9250_ReadAndPrint(void)
 {
   int16_t accel_raw[1][3];
@@ -166,6 +180,10 @@ static void MPU9250_ReadAndPrint(void)
   HAL_UART_Transmit(&huart2, (uint8_t *)buffer, (uint16_t)len_written, HAL_MAX_DELAY);
 }
 
+/**
+ * @brief Reads and prints the raw sensor data from the MPU9250.
+ * @note  Data is printed as comma-separated integer values.
+ */
 static void MPU9250_ReadAndPrintRaw(void)
 {
   int16_t accel_raw[1][3];
@@ -204,7 +222,7 @@ static void MPU9250_ReadAndPrintRaw(void)
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
+ * @brief  The application entry point. Initializes peripherals and enters the main loop.
  * @retval int
  */
 int main(void)
@@ -253,12 +271,14 @@ int main(void)
 
     if (btn_prev == GPIO_PIN_SET && btn_curr == GPIO_PIN_RESET)
     {
+      // User button pressed, indicate start of new run. Used by data_collection.py to separate runs.
       const char *header = "NEW_RUN\r\n";
       HAL_UART_Transmit(&huart2, (uint8_t *)header, strlen(header), HAL_MAX_DELAY);
     }
 
     if (btn_curr == GPIO_PIN_RESET)
     {
+      // Read and print raw data for data collection while user button is pressed
       MPU9250_ReadAndPrintRaw();
     }
 

@@ -1,3 +1,8 @@
+# Normalizes multiple runs in CSV files to a fixed number of rows.
+# Filters out runs with row counts outside 1.5 standard deviations from the mean.
+
+# reads CSV files from 'runs' directory and saves normalized files to 'runs_normalized' directory.
+
 import pandas as pd
 import numpy as np
 import os

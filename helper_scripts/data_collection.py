@@ -1,3 +1,6 @@
+# Helper script to collect sensor data from a serial port. Compatible with Linux and Windows.
+# Data is read from the specified serial port and saved into CSV files in the 'runs' directory.
+
 import serial
 import serial.tools.list_ports
 import threading

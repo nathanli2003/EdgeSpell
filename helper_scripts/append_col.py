@@ -1,3 +1,9 @@
+# Nano Edge requires all classes to have the same number of columns.
+# This script appends CSV files with the same class prefixes and truncates them
+# to ensure they all have the same number of columns.
+
+# Reads from 'runs_normalized' directory and saves to 'runs_appended' directory.
+
 import pandas as pd
 import glob
 import os

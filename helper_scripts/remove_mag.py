@@ -1,3 +1,8 @@
+# Magnetometer data isn't always necessary for Nano Edge models.
+# This script removes any columns related to magnetometer data from CSV files
+
+# Reads from 'runs_appended' directory and saves to 'run_no_mag' directory.
+
 import pandas as pd
 import os
 
