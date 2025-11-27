@@ -22,26 +22,18 @@
 #include <string.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "lis3dh_reg.h"
+#include "driver_mpu9250.h"
+#include "driver_mpu9250_interface.h"
 /* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-typedef union
-{
-  int16_t i16bit[3];
-  uint8_t u8bit[6];
-} axis3bit16_t;
-/* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-float Ax, Ay, Az;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define LIS3DH_ADDR (0x19U << 1) // Adjust according to your SA0 wiring
+#define MPU9250_ADDR MPU9250_ADDRESS_AD0_LOW
+#define MPU9250_REG_WHO_AM_I 0x75U
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -59,115 +51,154 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
-static void LIS3DH_ContextInit(void);
-static int32_t LIS3DH_Init(void);
-static int32_t LIS3DH_Read_Accel(void);
+static void MPU9250_Init(void);
+static void MPU9250_Print_WhoAmI(void);
+static void MPU9250_ReadAndPrint(void);
+static void MPU9250_ReadAndPrintRaw(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static stmdev_ctx_t lis3dh_ctx;
+static mpu9250_handle_t s_mpu9250_handle;
 
-int32_t platform_write(void *handle, uint8_t reg,
-                       const uint8_t *bufp, uint16_t len)
+static void MPU9250_Print_WhoAmI(void)
 {
-  // Multi-byte write: uses auto-increment mode
-  if (HAL_I2C_Mem_Write(&hi2c1,
-                        LIS3DH_ADDR,
-                        reg,
-                        I2C_MEMADD_SIZE_8BIT,
-                        (uint8_t *)bufp,
-                        len,
-                        100) != HAL_OK)
+  uint8_t who_am_i = 0U;
+
+  (void)mpu9250_interface_iic_init();
+  if (mpu9250_interface_iic_read(MPU9250_ADDR,
+                                 MPU9250_REG_WHO_AM_I,
+                                 &who_am_i,
+                                 1U) != 0U)
   {
-    return -1;
+    const char *msg = "MPU9250: WHO_AM_I read failed\r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+
+    return;
   }
 
-  return 0;
+  char buffer[64];
+  int len = snprintf(buffer,
+                     sizeof(buffer),
+                     "MPU9250 WHO_AM_I = 0x%02X\r\n",
+                     who_am_i);
+  HAL_UART_Transmit(&huart2, (uint8_t *)buffer, (uint16_t)len, HAL_MAX_DELAY);
 }
 
-int32_t platform_read(void *handle, uint8_t reg,
-                      uint8_t *bufp, uint16_t len)
+static void MPU9250_Init(void)
 {
-  if (len > 1) {
-        reg |= 0x80; // Set MSB for address auto-increment
-    }
-  if (HAL_I2C_Mem_Read(&hi2c1,
-                       LIS3DH_ADDR,
-                       reg,
-                       I2C_MEMADD_SIZE_8BIT,
-                       bufp,
-                       len,
-                       100) != HAL_OK)
+  DRIVER_MPU9250_LINK_INIT(&s_mpu9250_handle, mpu9250_handle_t);
+  DRIVER_MPU9250_LINK_IIC_INIT(&s_mpu9250_handle, mpu9250_interface_iic_init);
+  DRIVER_MPU9250_LINK_IIC_DEINIT(&s_mpu9250_handle, mpu9250_interface_iic_deinit);
+  DRIVER_MPU9250_LINK_IIC_READ(&s_mpu9250_handle, mpu9250_interface_iic_read);
+  DRIVER_MPU9250_LINK_IIC_WRITE(&s_mpu9250_handle, mpu9250_interface_iic_write);
+  DRIVER_MPU9250_LINK_SPI_INIT(&s_mpu9250_handle, mpu9250_interface_spi_init);
+  DRIVER_MPU9250_LINK_SPI_DEINIT(&s_mpu9250_handle, mpu9250_interface_spi_deinit);
+  DRIVER_MPU9250_LINK_SPI_READ(&s_mpu9250_handle, mpu9250_interface_spi_read);
+  DRIVER_MPU9250_LINK_SPI_WRITE(&s_mpu9250_handle, mpu9250_interface_spi_write);
+  DRIVER_MPU9250_LINK_DELAY_MS(&s_mpu9250_handle, mpu9250_interface_delay_ms);
+  DRIVER_MPU9250_LINK_DEBUG_PRINT(&s_mpu9250_handle, mpu9250_interface_debug_print);
+  DRIVER_MPU9250_LINK_RECEIVE_CALLBACK(&s_mpu9250_handle, mpu9250_interface_receive_callback);
+
+  if (mpu9250_set_interface(&s_mpu9250_handle, MPU9250_INTERFACE_IIC) != 0 ||
+      mpu9250_set_addr_pin(&s_mpu9250_handle, MPU9250_ADDR) != 0)
   {
-    return -1;
+    const char *msg = "MPU9250: interface config failed\r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+    Error_Handler();
   }
 
-  return 0;
-}
-
-void platform_delay(uint32_t millisec)
-{
-  HAL_Delay(millisec);
-}
-
-static void LIS3DH_ContextInit(void)
-{
-  lis3dh_ctx.write_reg = platform_write;
-  lis3dh_ctx.read_reg = platform_read;
-  lis3dh_ctx.mdelay = platform_delay;
-  lis3dh_ctx.handle = &hi2c1;
-  lis3dh_ctx.priv_data = NULL;
-}
-
-static int32_t LIS3DH_Init(void)
-{
-  uint8_t whoamI = 0;
-  int32_t ret;
-
-  ret = lis3dh_device_id_get(&lis3dh_ctx, &whoamI);
-  if (ret != 0 || whoamI != LIS3DH_ID)
+  if (mpu9250_init(&s_mpu9250_handle) != 0)
   {
-    return -1;
+    const char *msg = "MPU9250: init failed\r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+    Error_Handler();
   }
 
-  ret = lis3dh_block_data_update_set(&lis3dh_ctx, PROPERTY_ENABLE);
-  ret |= lis3dh_data_rate_set(&lis3dh_ctx, LIS3DH_ODR_400Hz);
-  ret |= lis3dh_full_scale_set(&lis3dh_ctx, LIS3DH_2g);
-  ret |= lis3dh_operating_mode_set(&lis3dh_ctx, LIS3DH_HR_12bit); // High-res: 12 effective bits in 16-bit registers
-  ret |= lis3dh_high_pass_on_outputs_set(&lis3dh_ctx, PROPERTY_DISABLE);
-  if (ret != 0)
-  {
-    return ret;
-  }
+  /* Example configuration: 1 kHz / (1 + div) = 100 Hz */
+  (void)mpu9250_set_sample_rate_divider(&s_mpu9250_handle, 9);
+  (void)mpu9250_set_low_pass_filter(&s_mpu9250_handle, MPU9250_LOW_PASS_FILTER_3);
+  (void)mpu9250_set_accelerometer_range(&s_mpu9250_handle, MPU9250_ACCELEROMETER_RANGE_16G);
+  (void)mpu9250_set_gyroscope_range(&s_mpu9250_handle, MPU9250_GYROSCOPE_RANGE_2000DPS);
 
-  return 0;
+  if (mpu9250_mag_init(&s_mpu9250_handle) != 0)
+  {
+    const char *msg = "MPU9250: mag init failed\r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+    Error_Handler();
+  }
+  (void)mpu9250_mag_set_bits(&s_mpu9250_handle, MPU9250_MAGNETOMETER_BITS_16);
+  (void)mpu9250_mag_set_mode(&s_mpu9250_handle, MPU9250_MAGNETOMETER_MODE_CONTINUOUS2);
 }
 
-static int32_t LIS3DH_Read_Accel(void)
+static void MPU9250_ReadAndPrint(void)
 {
-  axis3bit16_t data_raw_acceleration;
-  uint8_t reg;
+  int16_t accel_raw[1][3];
+  float accel_g[1][3];
+  int16_t gyro_raw[1][3];
+  float gyro_dps[1][3];
+  int16_t mag_raw[1][3];
+  float mag_ut[1][3];
+  uint16_t len = 1;
 
-  do
+  if (mpu9250_read(&s_mpu9250_handle,
+                   accel_raw,
+                   accel_g,
+                   gyro_raw,
+                   gyro_dps,
+                   mag_raw,
+                   mag_ut,
+                   &len) != 0 ||
+      len == 0)
   {
-    if (lis3dh_xl_data_ready_get(&lis3dh_ctx, &reg) != 0)
-    {
-      return -1;
-    }
-  } while (!reg);
-
-  if (lis3dh_acceleration_raw_get(&lis3dh_ctx, data_raw_acceleration.i16bit) != 0)
-  {
-    return -1;
+    const char *msg = "MPU9250: read failed\r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+    return;
   }
 
-  const float mg_to_g = 1.0f / 1000.0f;
-  Ax = lis3dh_from_fs2_hr_to_mg(data_raw_acceleration.i16bit[0]) * mg_to_g;
-  Ay = lis3dh_from_fs2_hr_to_mg(data_raw_acceleration.i16bit[1]) * mg_to_g;
-  Az = lis3dh_from_fs2_hr_to_mg(data_raw_acceleration.i16bit[2]) * mg_to_g;
+  char buffer[160];
+  int len_written = snprintf(buffer,
+                             sizeof(buffer),
+                             "ACC(g): %.3f, %.3f, %.3f | GYRO(dps): %.3f, %.3f, %.3f | MAG(uT): %.3f, %.3f, %.3f\r\n",
+                             accel_g[0][0], accel_g[0][1], accel_g[0][2],
+                             gyro_dps[0][0], gyro_dps[0][1], gyro_dps[0][2],
+                             mag_ut[0][0], mag_ut[0][1], mag_ut[0][2]);
+  HAL_UART_Transmit(&huart2, (uint8_t *)buffer, (uint16_t)len_written, HAL_MAX_DELAY);
+}
 
-  return 0;
+static void MPU9250_ReadAndPrintRaw(void)
+{
+  int16_t accel_raw[1][3];
+  float accel_g[1][3];
+  int16_t gyro_raw[1][3];
+  float gyro_dps[1][3];
+  int16_t mag_raw[1][3];
+  float mag_ut[1][3];
+  uint16_t len = 1;
+
+  if (mpu9250_read(&s_mpu9250_handle,
+                   accel_raw,
+                   accel_g,
+                   gyro_raw,
+                   gyro_dps,
+                   mag_raw,
+                   mag_ut,
+                   &len) != 0 ||
+      len == 0)
+  {
+    const char *msg = "MPU9250: raw read failed\r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+    return;
+  }
+
+  char buffer[160];
+  int len_written = snprintf(buffer,
+                             sizeof(buffer),
+                             "%d, %d, %d, %d, %d,%d, %d, %d, %d\r\n",
+                             accel_raw[0][0], accel_raw[0][1], accel_raw[0][2],
+                             gyro_raw[0][0], gyro_raw[0][1], gyro_raw[0][2],
+                             mag_raw[0][0], mag_raw[0][1], mag_raw[0][2]);
+  HAL_UART_Transmit(&huart2, (uint8_t *)buffer, (uint16_t)len_written, HAL_MAX_DELAY);
 }
 
 /* USER CODE END 0 */
@@ -204,53 +235,35 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-
-  LIS3DH_ContextInit();
-  if (LIS3DH_Init() != 0)
-  {
-    const char *msg = "LIS3DH init failed\r\n";
-    HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), 100);
-    Error_Handler();
-  }
+  MPU9250_Print_WhoAmI();
+  MPU9250_Init();
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  const uint32_t poll_interval_ms = 20U;
-  GPIO_PinState btn_prev = GPIO_PIN_SET; // Assume button is initially released
+  const uint32_t poll_interval_ms = 5U;
+  GPIO_PinState btn_prev = GPIO_PIN_SET;
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // Read the current state of the User Button (B1)
-    // B1 is active Low (GPIO_PIN_RESET when pressed)
     GPIO_PinState btn_curr = HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin);
 
-    // 1. Detect the start of a press (Falling Edge: Released -> Pressed)
     if (btn_prev == GPIO_PIN_SET && btn_curr == GPIO_PIN_RESET)
     {
-        char *header = "NEW_RUN\n";
-        HAL_UART_Transmit(&huart2, (uint8_t *)header, strlen(header), HAL_MAX_DELAY);
+      const char *header = "NEW_RUN\r\n";
+      HAL_UART_Transmit(&huart2, (uint8_t *)header, strlen(header), HAL_MAX_DELAY);
     }
 
-    // 2. Only output data while the button is held down
     if (btn_curr == GPIO_PIN_RESET)
     {
-        if (LIS3DH_Read_Accel() == 0)
-        {
-          char buffer[80];
-          int len = snprintf(buffer, sizeof(buffer), "%.4f, %.4f, %.4f \n", Ax, Ay, Az);
-          HAL_UART_Transmit(&huart2, (uint8_t *)buffer, len, HAL_MAX_DELAY);
-        }
+      MPU9250_ReadAndPrintRaw();
     }
 
-    // Update previous state for the next iteration
     btn_prev = btn_curr;
-
-    // Poll delay (acts as a simple debounce)
-    HAL_Delay(poll_interval_ms); 
+    HAL_Delay(poll_interval_ms);
   }
   /* USER CODE END 3 */
 }

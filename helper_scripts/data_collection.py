@@ -4,17 +4,34 @@ import threading
 import csv
 import time
 import os
+import platform
 from datetime import datetime
 
 # ================= CONFIGURATION =================
-# Replace 'COM3' with your actual port (e.g., '/dev/ttyACM0' on Linux/Mac)
-SERIAL_PORT = 'COM3' 
+# Replace these defaults if your setup differs
+DEFAULT_WINDOWS_PORT = 'COM3'
+DEFAULT_LINUX_PORT = '/dev/ttyACM0'
+SAMPLE_LABELS = [
+    "Accel_X", "Accel_Y", "Accel_Z",
+    "Gyro_X", "Gyro_Y", "Gyro_Z",
+    "Mag_X", "Mag_Y", "Mag_Z",
+]
+
+def _detect_default_port():
+    system = platform.system().lower()
+    if 'windows' in system:
+        return DEFAULT_WINDOWS_PORT
+    if 'linux' in system:
+        return DEFAULT_LINUX_PORT
+    return DEFAULT_WINDOWS_PORT
+
+SERIAL_PORT = _detect_default_port()
 BAUD_RATE = 115200
-OUTPUT_DIR = "runs"  # Directory to save files in
+OUTPUT_DIR = "../runs"  # Directory to save files in
 # =================================================
 
 # Global variables to manage state
-data_runs = []  # List of runs. Each run is a list of [x, y, z] samples
+data_runs = []  # List of runs. Each run is a list of 9-value samples
 current_run_index = -1
 is_recording = True
 
@@ -44,12 +61,14 @@ def read_serial_data():
                             print(f"\n---> Detected NEW_RUN (Run #{current_run_index + 1})")
                         
                         else:
-                            # Attempt to parse coordinate data
-                            parts = line.split(',')
-                            if len(parts) == 3 and current_run_index >= 0:
-                                # Convert strings to floats
-                                coords = [float(p.strip()) for p in parts]
-                                data_runs[current_run_index].append(coords)
+                            # Attempt to parse a full sensor sample
+                            parts = [p.strip() for p in line.split(',')]
+                            if len(parts) == len(SAMPLE_LABELS) and current_run_index >= 0:
+                                try:
+                                    sample = [int(p) for p in parts]
+                                except ValueError:
+                                    continue
+                                data_runs[current_run_index].append(sample)
                                 # Optional: Print a dot to show activity without spamming
                                 print(".", end="", flush=True)
                                 
@@ -78,10 +97,10 @@ def save_to_csv():
     # Determine the maximum number of rows needed (longest run)
     max_length = max(len(run) for run in data_runs)
     
-    # Create Headers: Run1_X, Run1_Y, Run1_Z, Run2_X, ...
+    # Create headers: Run1_Accel_X, ..., Run2_Mag_Z, ...
     headers = []
     for i in range(len(data_runs)):
-        headers.extend([f"Run{i+1}_X", f"Run{i+1}_Y", f"Run{i+1}_Z"])
+        headers.extend([f"Run{i+1}_{label}" for label in SAMPLE_LABELS])
 
     print(f"\n\nSaving {len(data_runs)} runs to {filename}...")
 
@@ -98,7 +117,7 @@ def save_to_csv():
                     row.extend(run[i])
                 else:
                     # If this run is shorter, pad with empty strings
-                    row.extend(["", "", ""])
+                    row.extend([""] * len(SAMPLE_LABELS))
             writer.writerow(row)
             
     print("Done!")
