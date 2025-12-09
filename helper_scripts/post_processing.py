@@ -34,15 +34,23 @@ def main():
 
     # --- Step 2: Append columns from normalized files ---
     print("\n[STEP 2/3] Running Column Appending...")
-    append_columns_by_prefix(DIR_NORMALIZED, DIR_APPENDED)
+    original_counts = append_columns_by_prefix(DIR_NORMALIZED, DIR_APPENDED)
 
     # --- Step 3: Remove magnetometer columns ---
     print("\n[STEP 3/3] Running Magnetometer Column Removal...")
     remove_mag_columns(DIR_APPENDED, DIR_NO_MAG)
 
+
     print("\n" + "="*50)
     print("POST-PROCESSING PIPELINE COMPLETE!")
     print(f"Final output located in: '{DIR_NO_MAG}'")
+
+    if original_counts:
+        print("\n--- Original Column Counts Before Truncation ---")
+        for prefix, count in original_counts.items():
+            print(f"- {prefix}: {count} columns")
+        print("-------------------------------------------------")
+
     print("="*50)
 
 if __name__ == "__main__":

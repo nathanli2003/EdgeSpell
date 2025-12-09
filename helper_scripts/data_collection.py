@@ -30,7 +30,7 @@ def _detect_default_port():
 
 SERIAL_PORT = _detect_default_port()
 BAUD_RATE = 115200
-OUTPUT_DIR = "../runs"  # Directory to save files in
+OUTPUT_DIR = "runs"  # Directory to save files in
 # =================================================
 
 # Global variables to manage state
