@@ -17,7 +17,6 @@ DEFAULT_LINUX_PORT = '/dev/ttyACM0'
 SAMPLE_LABELS = [
     "Accel_X", "Accel_Y", "Accel_Z",
     "Gyro_X", "Gyro_Y", "Gyro_Z",
-    "Mag_X", "Mag_Y", "Mag_Z",
 ]
 
 def _detect_default_port():
