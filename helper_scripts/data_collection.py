@@ -97,13 +97,13 @@ def save_to_csv():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = os.path.join(OUTPUT_DIR, f"recording_{timestamp}.csv")
 
-    # Determine the maximum number of rows needed (longest run)
-    max_length = max(len(run) for run in data_runs)
+    # Determine the maximum number of samples in any run
+    max_samples = max(len(run) for run in data_runs)
     
-    # Create headers: Run1_Accel_X, ..., Run2_Mag_Z, ...
+    # Create headers: Sample1_Accel_X, ..., SampleN_Mag_Z
     headers = []
-    for i in range(len(data_runs)):
-        headers.extend([f"Run{i+1}_{label}" for label in SAMPLE_LABELS])
+    for i in range(max_samples):
+        headers.extend([f"Sample{i+1}_{label}" for label in SAMPLE_LABELS])
 
     print(f"\n\nSaving {len(data_runs)} runs to {filename}...")
 
@@ -111,16 +111,17 @@ def save_to_csv():
         writer = csv.writer(csvfile)
         writer.writerow(headers)
 
-        # Write data row by row
-        for i in range(max_length):
+        # Write data row by row (each row is a run)
+        for run in data_runs:
             row = []
-            for run in data_runs:
-                if i < len(run):
-                    # If this run has data at this index, add it
-                    row.extend(run[i])
-                else:
-                    # If this run is shorter, pad with empty strings
-                    row.extend([""] * len(SAMPLE_LABELS))
+            for sample in run:
+                row.extend(sample)
+            
+            # Pad with empty strings if this run is shorter than max_samples
+            target_len = max_samples * len(SAMPLE_LABELS)
+            if len(row) < target_len:
+                row.extend([""] * (target_len - len(row)))
+                
             writer.writerow(row)
             
     print("Done!")

@@ -32,7 +32,7 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define MPU9250_ADDR MPU9250_ADDRESS_AD0_LOW
+#define MPU9250_ADDR MPU9250_ADDRESS_AD0_HIGH
 #define MPU9250_REG_WHO_AM_I 0x75U
 /* USER CODE END PM */
 
