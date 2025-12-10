@@ -37,9 +37,9 @@ SAMPLE_NORM = 100
 SPLIT_RATIO = 0.8
 
 # 4. Source and destination directories
-SOURCE_DIR = "runs"
-TRAIN_DIR = "dataset_train"
-TEST_DIR = "dataset_test"
+SOURCE_DIR = "Data/runs"
+TRAIN_DIR = "Data/dataset_train"
+TEST_DIR = "Data/dataset_test"
 
 # 5. The number of axes/features per sample (e.g., AccelX,Y,Z, GyroX,Y,Z = 6)
 FEATURES_PER_SAMPLE = 6
