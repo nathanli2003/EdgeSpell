@@ -212,10 +212,9 @@ static void MPU9250_ReadAndPrintRaw(void)
   char buffer[160];
   int len_written = snprintf(buffer,
                              sizeof(buffer),
-                             "%d, %d, %d, %d, %d,%d, %d, %d, %d\r\n",
+                             "%d, %d, %d, %d, %d,%d\r\n",
                              accel_raw[0][0], accel_raw[0][1], accel_raw[0][2],
-                             gyro_raw[0][0], gyro_raw[0][1], gyro_raw[0][2],
-                             mag_raw[0][0], mag_raw[0][1], mag_raw[0][2]);
+                             gyro_raw[0][0], gyro_raw[0][1], gyro_raw[0][2]);
   HAL_UART_Transmit(&huart2, (uint8_t *)buffer, (uint16_t)len_written, HAL_MAX_DELAY);
 }
 
