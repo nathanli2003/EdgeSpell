@@ -24,8 +24,10 @@ import numpy as np
 #    e.g., 'circle' will match 'circle.csv', 'circle_01.csv', etc.
 FILENAME_PREFIXES = [
     "circle",
-    "square",
-    "left-swipe",
+    "downup",
+    "updown",
+    "rightleft",
+    "leftright",
 ]
 
 # 2. The fixed number of samples each run should be normalized to.
@@ -97,6 +99,22 @@ def process_class(prefix, sample_norm, num_features, split_ratio):
         return
         
     print(f"Found {len(csv_files)} file(s) with a total of {num_runs} runs.")
+
+    # Filter runs based on sample count (outlier removal)
+    if num_runs > 1:
+        run_lengths = combined_df.count(axis=1) // num_features
+        mean_samples = run_lengths.mean()
+        std_samples = run_lengths.std()
+        
+        lower_bound = mean_samples - 1.5 * std_samples
+        upper_bound = mean_samples + 1.5 * std_samples
+        
+        print(f"Stats: Mean samples={mean_samples:.2f}, Std={std_samples:.2f}. Keeping runs in range [{lower_bound:.2f}, {upper_bound:.2f}]")
+        
+        combined_df = combined_df[(run_lengths >= lower_bound) & (run_lengths <= upper_bound)]
+        dropped_runs = num_runs - len(combined_df)
+        num_runs = len(combined_df)
+        print(f"Dropped {dropped_runs} runs. Remaining: {num_runs}")
 
     # Apply resampling to each row (run)
     resampled_runs = combined_df.apply(
