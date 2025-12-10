@@ -54,3 +54,6 @@ runs_good/
 runs_appended/
 run_no_mag/
 helper_scripts/__pycache__/
+Python/dataset_test/
+Python/dataset_train/
+Python/helper_scripts/__pycache__/
