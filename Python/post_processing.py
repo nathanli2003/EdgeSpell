@@ -28,6 +28,7 @@ FILENAME_PREFIXES = [
     "updown",
     "rightleft",
     "leftright",
+    "lightning"
 ]
 
 # 2. The fixed number of samples each run should be normalized to.
