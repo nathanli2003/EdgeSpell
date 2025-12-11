@@ -51,6 +51,7 @@ venv/
 runs/
 runs_normalized/
 runs_good/
+Data/
 runs_appended/
 run_no_mag/
 helper_scripts/__pycache__/
