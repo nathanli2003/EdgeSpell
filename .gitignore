@@ -53,5 +53,6 @@ runs_normalized/
 runs_good/
 Data/
 runs_appended/
+Data/
 run_no_mag/
 helper_scripts/__pycache__/

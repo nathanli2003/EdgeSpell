@@ -63,6 +63,7 @@ const char *id2class[CLASS_NUMBER + 1] = { // Buffer for mapping class id to cla
 	"unknown",
 	"updown_training",
 	"rightleft_training",
+	"lightning_training",
 	"leftright_training",
 	"downup_training",
 	"circle_training",
@@ -248,6 +249,10 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+  // Enable DWT Cycle Counter for timing. This must be done after clock configuration.
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
   MPU9250_Print_WhoAmI();
   MPU9250_Init();
 
@@ -323,8 +328,13 @@ int main(void)
         }
         normalize_buffer(raw_data, samples_to_process, input_user_buffer, DATA_INPUT_USER);
 
+        // --- Measure Inference Time START ---
+        DWT->CYCCNT = 0; // Reset cycle counter to 0
         // Run Classification
         enum neai_state cls_status = neai_classification(input_user_buffer, output_class_buffer, &id_class);
+        uint32_t cycle_count = DWT->CYCCNT; // Read cycle counter
+        float inference_time_us = (float)cycle_count * 1000000.0f / HAL_RCC_GetHCLKFreq();
+        // --- Measure Inference Time END ---
 
         if (cls_status != NEAI_OK)
         {
@@ -333,49 +343,26 @@ int main(void)
         }
         else
         {
-          // Note: if raw_count < DATA_INPUT_USER we interpolate up to the model window
-          // size so classification still runs on shorter captures.
-          uint8_t sorted_idx[CLASS_NUMBER];
-          for (int i = 0; i < CLASS_NUMBER; i++)
-          {
-            sorted_idx[i] = i;
-          }
-
-          for (int i = 0; i < CLASS_NUMBER - 1; i++)
-          {
-            for (int j = 0; j < CLASS_NUMBER - i - 1; j++)
-            {
-              if (output_class_buffer[sorted_idx[j]] < output_class_buffer[sorted_idx[j + 1]])
-              {
-                uint8_t temp = sorted_idx[j];
-                sorted_idx[j] = sorted_idx[j + 1];
-                sorted_idx[j + 1] = temp;
-              }
-            }
-          }
-
           int len = 0;
+          
+          // 1. Print Inference Time
+          len += snprintf(buffer + len, sizeof(buffer) - len, "Inference: %.2f us | ", inference_time_us);
+
+          // 2. Print Best Class
           if (id_class > 0)
           {
+            // id_class is 1-based. Buffer index is id_class - 1.
             len += snprintf(buffer + len, sizeof(buffer) - len,
-                            "Class: %s (Prob: %.2f) | ",
+                            "Class: %s (Prob: %.2f)", 
                             id2class[id_class],
                             output_class_buffer[id_class - 1]);
           }
           else
           {
-            len += snprintf(buffer + len, sizeof(buffer) - len, "Class: unknown | ");
+            len += snprintf(buffer + len, sizeof(buffer) - len, "Class: unknown");
           }
 
-          for (int i = 0; i < CLASS_NUMBER; i++)
-          {
-            if (len >= sizeof(buffer) - 1) break;
-            int idx = sorted_idx[i];
-            len += snprintf(buffer + len, sizeof(buffer) - len,
-                            "%s: %.2f ",
-                            id2class[idx + 1],
-                            output_class_buffer[idx]);
-          }
+          // 3. Add Newline
           len += snprintf(buffer + len, sizeof(buffer) - len, "\r\n");
 
           HAL_UART_Transmit(&huart2, (uint8_t *)buffer, len, 1000);
