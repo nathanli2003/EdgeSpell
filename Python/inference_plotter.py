@@ -102,17 +102,30 @@ def format_model_id(model_id):
 
 def plot_gesture_metrics(df, plots_dir):
     """
-    Creates bar charts for each gesture comparing models (Accuracy & Time).
+    Creates bar charts for each gesture comparing models (Accuracy only).
     """
     gestures = df['ground_truth'].unique()
     
+    # Define color palette (MLP=Blues, RF=Greens, SVM=Orange)
+    color_map = {
+        'ne_mlp': '#1f77b4', # Dark Blue
+        'hm_mlp': '#aec7e8', # Light Blue
+        'ne_rf':  '#2ca02c', # Dark Green
+        'hm_rf':  '#98df8a', # Light Green
+        'ne_svm': '#ff7f0e', # Orange
+    }
+    
+    # Define desired order
+    desired_order = ['ne_mlp', 'hm_mlp', 'ne_rf', 'hm_rf', 'ne_svm']
+
     for gesture in gestures:
         print(f"\nStats for Gesture: {gesture}")
         gesture_df = df[df['ground_truth'] == gesture]
-        models = sorted(gesture_df['model_id'].unique())
+        
+        unique_models = gesture_df['model_id'].unique()
+        models = sorted(unique_models, key=lambda x: desired_order.index(x) if x in desired_order else 999)
         
         acc_means, acc_cis = [], []
-        time_means, time_cis = [], []
         
         for model in models:
             model_data = gesture_df[gesture_df['model_id'] == model]
@@ -128,41 +141,22 @@ def plot_gesture_metrics(df, plots_dir):
             acc_means.append(acc)
             acc_cis.append(acc_ci)
             
-            # --- Time Stats ---
-            times = model_data['Inference Time (us)']
-            t_mean = np.mean(times)
-            t_sem = st.sem(times)
-            # 95% CI for mean: t_score * sem
-            t_ci = t_sem * st.t.ppf((1 + 0.95) / 2., len(times)-1) if len(times) > 1 else 0
-            
-            time_means.append(t_mean)
-            time_cis.append(t_ci)
-            
-            print(f"  - {format_model_id(model):<20}: Acc={acc:.2%}, Time={t_mean:.2f} us")
+            print(f"  - {format_model_id(model):<20}: Acc={acc:.2%}")
 
         # --- Plotting ---
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        plt.figure(figsize=(8, 6))
         
         x_pos = np.arange(len(models))
         model_labels = [format_model_id(m) for m in models]
         
-        # Use a qualitative colormap for distinct colors per model
-        colors = plt.get_cmap('tab10')(np.linspace(0, 1, len(models)))
+        bar_colors = [color_map.get(m, '#7f7f7f') for m in models]
         
-        # Accuracy Subplot
-        ax1.bar(x_pos, acc_means, yerr=acc_cis, capsize=5, color=colors, alpha=0.8)
-        ax1.set_xticks(x_pos)
-        ax1.set_xticklabels(model_labels, rotation=45, ha='right')
-        ax1.set_ylabel('Accuracy')
-        ax1.set_ylim(0, 1.1)
-        ax1.grid(axis='y', linestyle='--', alpha=0.5)
-        
-        # Time Subplot
-        ax2.bar(x_pos, time_means, yerr=time_cis, capsize=5, color=colors, alpha=0.8)
-        ax2.set_xticks(x_pos)
-        ax2.set_xticklabels(model_labels, rotation=45, ha='right')
-        ax2.set_ylabel('Time (us)')
-        ax2.grid(axis='y', linestyle='--', alpha=0.5)
+        # Accuracy Plot
+        plt.bar(x_pos, acc_means, yerr=acc_cis, capsize=5, color=bar_colors, alpha=0.9, edgecolor='black', linewidth=0.5)
+        plt.xticks(x_pos, model_labels, rotation=45, ha='right')
+        plt.ylabel('Accuracy')
+        plt.ylim(0, 1.1)
+        plt.grid(axis='y', linestyle='--', alpha=0.5)
         
         plt.tight_layout()
         filename = os.path.join(plots_dir, f'metrics_{gesture}.png')
@@ -216,7 +210,24 @@ def plot_overall_metrics(df, plots_dir):
     Creates bar charts for overall performance comparing models (Accuracy & Time).
     """
     print("\n--- Generating Overall Metrics Plot ---")
-    models = sorted(df['model_id'].unique())
+    
+    # Define desired order
+    desired_order = ['ne_mlp', 'hm_mlp', 'ne_rf', 'hm_rf', 'ne_svm']
+    
+    unique_models = df['model_id'].unique()
+    # Sort models based on desired_order, putting unknown ones at the end
+    models = sorted(unique_models, key=lambda x: desired_order.index(x) if x in desired_order else 999)
+    
+    # Define color palette (MLP=Blues, RF=Greens, SVM=Orange)
+    color_map = {
+        'ne_mlp': '#1f77b4', # Dark Blue
+        'hm_mlp': '#aec7e8', # Light Blue
+        'ne_rf':  '#2ca02c', # Dark Green
+        'hm_rf':  '#98df8a', # Light Green
+        'ne_svm': '#ff7f0e', # Orange
+    }
+    
+    bar_colors = [color_map.get(m, '#7f7f7f') for m in models]
     
     acc_means, acc_cis = [], []
     time_means, time_cis = [], []
@@ -245,35 +256,35 @@ def plot_overall_metrics(df, plots_dir):
         time_cis.append(t_ci)
 
     # --- Plotting ---
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-    
     x_pos = np.arange(len(models))
     model_labels = [format_model_id(m) for m in models]
     
-    colors = plt.get_cmap('tab10')(np.linspace(0, 1, len(models)))
-    
-    # Accuracy Subplot
-    ax1.bar(x_pos, acc_means, yerr=acc_cis, capsize=5, color=colors, alpha=0.8)
-    ax1.set_xticks(x_pos)
-    ax1.set_xticklabels(model_labels, rotation=45, ha='right')
-    ax1.set_ylabel('Overall Accuracy')
-    ax1.set_ylim(0, 1.1)
-    ax1.set_title('Overall Accuracy per Model')
-    ax1.grid(axis='y', linestyle='--', alpha=0.5)
-    
-    # Time Subplot
-    ax2.bar(x_pos, time_means, yerr=time_cis, capsize=5, color=colors, alpha=0.8)
-    ax2.set_xticks(x_pos)
-    ax2.set_xticklabels(model_labels, rotation=45, ha='right')
-    ax2.set_ylabel('Average Inference Time (us)')
-    ax2.set_title('Overall Inference Time per Model')
-    ax2.grid(axis='y', linestyle='--', alpha=0.5)
-    
+    # 1. Accuracy Plot
+    plt.figure(figsize=(8, 6))
+    plt.bar(x_pos, acc_means, yerr=acc_cis, capsize=5, color=bar_colors, alpha=0.9, edgecolor='black', linewidth=0.5)
+    plt.xticks(x_pos, model_labels, rotation=45, ha='right')
+    plt.ylabel('Overall Accuracy')
+    plt.ylim(0, 1.1)
+    plt.title('Overall Accuracy per Model')
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
-    filename = os.path.join(plots_dir, 'overall_metrics.png')
-    plt.savefig(filename)
+    acc_filename = os.path.join(plots_dir, 'overall_accuracy.png')
+    plt.savefig(acc_filename)
     plt.close()
-    print(f"Saved overall metrics plot to {filename}")
+    print(f"Saved overall accuracy plot to {acc_filename}")
+
+    # 2. Time Plot
+    plt.figure(figsize=(8, 6))
+    plt.bar(x_pos, time_means, yerr=time_cis, capsize=5, color=bar_colors, alpha=0.9, edgecolor='black', linewidth=0.5)
+    plt.xticks(x_pos, model_labels, rotation=45, ha='right')
+    plt.ylabel('Average Inference Time (us)')
+    plt.title('Overall Inference Time per Model')
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    time_filename = os.path.join(plots_dir, 'overall_inference_time.png')
+    plt.savefig(time_filename)
+    plt.close()
+    print(f"Saved overall inference time plot to {time_filename}")
 
 def print_overall_metrics(df):
     """
